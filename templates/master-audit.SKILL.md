@@ -127,14 +127,14 @@ Compute it as `score = max(0, 100 − Σ penalties)`, one penalty per *open* iss
 Contradictions and upstream staleness are the two cardinal sins of a synthesis layer — a master that hides a conflict or echoes a claim its source has since revised is actively misleading — so both carry the heaviest penalty.
 
 You record two numbers:
-- **Before:** computed over every issue the audit surfaced this round.
+- **Before:** anchor on the prior round's *After* for this scope — its still-open issues carry forward and stay counted. Re-verify each carried-forward issue (drop any the user fixed out-of-band since last round), then add every new issue this round surfaces. A scope's first-ever round has no prior After, so Before is simply what you found. If a carried-forward count disagrees with last round's, reconcile it under Known Open Items and say why — an unexplained jump means the trend is fiction, not progress.
 - **After:** recomputed once the user's chosen fixes land — drop the penalty for each *resolved* issue; anything deferred or declined stays counted. If no fixes are applied, after == before.
 
 **Keep the report side dead simple.** The rubric above is *your* working method, not something the reader needs — so the report shows only one line: `Before → After: <before> → <after>`, with `(no change)` appended when nothing was applied (e.g. a report-only pass). No breakdown table, no per-dimension penalties, no formula in the report — just the number and how it moved.
 
 ## Conventions
 - **Report-only pass first** — never change article contents without user confirmation.
-- **Always include the one-line Master Wiki Integrity Score** — `Before → After: X → Y` — since it's what makes the synthesis layer's health legible round to round.
+- **Always include the Master Wiki Integrity Score line** — it's what makes the synthesis layer's health legible round to round (its one-line format and the rubric behind it live in [Master Wiki Integrity Score](#master-wiki-integrity-score)).
 - After the user confirms fixes, the report documents both what was fixed AND what remains open.
 - Use `⚠️` inline callouts in articles for unresolved cross-workstream contradictions, and reference them under "Known Open Items".
 - Round numbering is sequential per scope.
@@ -149,8 +149,9 @@ You record two numbers:
 - **NEVER add `⚠️` callouts to articles before the user has approved them.** The report-only pass is binding.
 - **NEVER claim a contradiction or staleness issue without `file:line` evidence on both sides** (master + upstream). A finding the user can't navigate to is unactionable.
 - **NEVER tune the integrity weights or skip issues to make a round look better.** The rubric is fixed precisely so rounds are comparable; a flattered score is worse than no score.
+- **NEVER recompute the Before score from a blank slate when a prior round exists.** Anchor it to the last round's After and carry the still-open issues forward — a Before that ignores history isn't a baseline, it's an unrelated number, and the round-over-round delta becomes meaningless.
 - **NEVER report an after-score that assumes fixes you didn't actually apply.** The after-score must reflect the master wiki as it stands once you've stopped editing — deferred and declined issues stay counted.
-- **NEVER dump the scoring rubric, penalty breakdown, or per-dimension table into the report.** The score is one line — `Before → After: X → Y` — the rubric is your internal method, not reader-facing clutter.
+- **NEVER dump the scoring rubric, penalty breakdown, or per-dimension table into the report.** The rubric is your internal method, not reader-facing clutter.
 
 ## Output to the user
 

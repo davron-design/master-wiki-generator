@@ -29,12 +29,14 @@ The master wiki is NOT a copy of the workstream wikis. It is a synthesis layer. 
 - User drops new cross-cutting files (steering committee notes, integration plans) into `raw/`
 
 ## Before compiling, ask yourself
-- **Is this cross-cutting?** Does this material connect two or more workstreams, or is it workstream-internal? If single-workstream, skip it — or, at most, write a thin pointer article.
+- **Is this cross-cutting?** Does this material connect two or more workstreams, or is it workstream-internal? If single-workstream, skip it — or, at most, write a thin pointer article. **Not cross-cutting *yet*?** If it's one workstream's content today but will clearly interlock with another soon (a WS1 risk WS2 inherits next quarter), don't synthesize it now — name it as a watch item in your output report so the next compile picks it up once the second workstream actually touches it. Synthesizing a one-sided interlock invents the other half.
 - **Attribution discipline**: Can I cite which workstream(s) each piece of synthesis draws from? Every claim must be traceable.
 - **Theme placement**: Does this fit an existing cross-cutting theme (Risks, Decisions, Dependencies, Timeline, Open Questions) or warrant a new one? Default to existing themes. Fragmenting the master wiki defeats its purpose.
 - **What does "refresh" mean here?** It means *re-read upstream and surface what's new or changed as new synthesis* — NOT open the affected master articles and rewrite them. Compile only ever adds and flags; it never edits an existing article's body. (See [A "refresh" is still additive](#a-refresh-is-still-additive--never-rewrite-an-existing-article).)
 
 ## Procedure
+
+First, take stock of what's actually new. Unlike the leaf compile, `raw/ws<N>-wiki/` folders are always present (git-synced), so their mere existence is **not** a signal to compile. A run has real work only when at least one of these holds: loose cross-cutting files are sitting in `raw/`, or a workstream wiki has moved upstream since the last compile (compare against the most recent `raw/_<date>-compiled/` archive, or just ask the user what changed). If neither is true, say so and stop — do not create an empty dated archive folder, and do not re-synthesize unchanged upstream into duplicate articles.
 
 1. **Inventory `raw/`.** Two kinds of inputs:
    - **Workstream wikis** at `raw/ws<N>-wiki/` (or similarly named folders). Read only their `wiki/` subfolder — that's the polished output. **Skip** their own `raw/` (input zone, not yet synthesized) and `output/` (their own reports). Start with each WS's `wiki/_master-index.md` and theme indexes; then read articles selectively, prioritizing the ones most likely to surface cross-cutting threads.
