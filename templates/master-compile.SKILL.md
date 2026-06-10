@@ -32,6 +32,7 @@ The master wiki is NOT a copy of the workstream wikis. It is a synthesis layer. 
 - **Is this cross-cutting?** Does this material connect two or more workstreams, or is it workstream-internal? If single-workstream, skip it — or, at most, write a thin pointer article.
 - **Attribution discipline**: Can I cite which workstream(s) each piece of synthesis draws from? Every claim must be traceable.
 - **Theme placement**: Does this fit an existing cross-cutting theme (Risks, Decisions, Dependencies, Timeline, Open Questions) or warrant a new one? Default to existing themes. Fragmenting the master wiki defeats its purpose.
+- **What does "refresh" mean here?** It means *re-read upstream and surface what's new or changed as new synthesis* — NOT open the affected master articles and rewrite them. Compile only ever adds and flags; it never edits an existing article's body. (See [A "refresh" is still additive](#a-refresh-is-still-additive--never-rewrite-an-existing-article).)
 
 ## Procedure
 
@@ -79,7 +80,37 @@ The master wiki is NOT a copy of the workstream wikis. It is a synthesis layer. 
 
 6. **Update `wiki/_master-index.md`** — also a markdown table (`| Theme | Description |`), one row per theme. Use the piped wiki-link form `[[theme-slug/_index|theme-slug]]`. Add or update the row when you create a new theme or when an existing description has gone stale. Pack descriptions with which workstreams the theme draws from and signature articles — not just a category name.
 
-7. **Archive loose cross-cutting files only.** Once all loose files for this run are compiled, create `raw/_<YYYY-MM-DD>-complied/` (use today's date) and move every loose raw file you just compiled into it. **Do NOT touch `raw/ws<N>-wiki/` folders** — those are live, git-synced sources. Moving them breaks sync and they will re-appear on next pull anyway.
+7. **Archive loose cross-cutting files only.** Once all loose files for this run are compiled, create `raw/_<YYYY-MM-DD>-compiled/` (use today's date) and move every loose raw file you just compiled into it. **Do NOT touch `raw/ws<N>-wiki/` folders** — those are live, git-synced sources. Moving them breaks sync and they will re-appear on next pull anyway.
+
+## A "refresh" is still additive — never rewrite an existing article
+
+The most common compile is a *refresh*: a workstream wiki moved upstream (say WS2's
+own wiki now says the schema registry GA slipped from Q3 to Q4) and a master article
+is still echoing the old fact. The natural instinct is to open that master article
+and edit it to the new date. **Resist it.** Even on an explicit "refresh," and even
+when the upstream change is a plain factual correction rather than an opinion,
+compile does not rewrite existing master articles. It captures the change as *new*
+synthesis and flags the conflict.
+
+Concretely, when upstream has moved a claim the master still echoes:
+
+1. **Write a new synthesis article** for the change (e.g. `risks/registry-ga-slip-confirmed.md`, or an `open-questions/` article if it raises one). In it:
+   - state the change, attributed to the upstream page that now reflects it — `Per [[ws2-wiki/wiki/data-governance/schema-registry]], GA has slipped to Q4`;
+   - add a `⚠️` callout naming the conflict — the existing master article and any still-stale workstream pages now disagree with the new fact;
+   - link to the existing master article it supersedes, so the connection is explicit (`see [[risks/timeline-slip]]`).
+2. **Leave the old article's body untouched.** Updating the theme's `_index.md` row to point at the new article is fine — that's navigation, not a content rewrite.
+3. **Name the now-stale existing articles in your output report**, so the user and the next `master-audit` run know exactly what needs reconciling.
+
+**Why compile stays additive — the part worth internalizing:** the existing master
+article was synthesized from a known prior state, and someone may have reasoned
+against it. Silently rewriting it mid-ingest destroys that synthesis and its
+provenance with nobody reviewing the before/after. Deciding to *change* existing
+content is precisely what `master-audit` is for: it runs as a report-then-confirm
+pass, so a human sees what's about to change before it lands. Keeping compile purely
+additive means two things that matter a lot in practice — it's always safe to re-run
+(re-running never quietly mutates what's there), and reconciliation lives in exactly
+one place (the audit) instead of being smeared, unreviewed, across every compile.
+This mirrors how the leaf `raw-compile` works, on purpose.
 
 ## When the upstream looks broken
 
@@ -91,10 +122,11 @@ The master wiki is NOT a copy of the workstream wikis. It is a synthesis layer. 
 
 After compiling, report:
 - Which workstream wikis were read and a quick snapshot of their state (e.g., article counts, last update)
-- Which themes received new or updated articles (new vs. existing)
+- Which themes received new synthesis articles (new theme vs. existing)
 - Any new theme folders created
 - The name of the dated archive folder (if any loose files were processed)
 - Any cross-workstream contradictions flagged with `⚠️`
+- **Any existing master articles now made stale by an upstream change** — name them so the user and the next `master-audit` run can reconcile them. Compile flags staleness; it does not rewrite the stale article.
 - Anything ambiguous you had to make a judgment call on (so the user can correct course)
 
 ## Anti-patterns
@@ -105,7 +137,7 @@ After compiling, report:
 - **NEVER drop articles into `wiki/` root.** Every article belongs to a theme folder — `_master-index.md` is the only navigation entry point at the root.
 - **NEVER skip attribution.** A claim without a `[[wiki link]]` back to its source is unverifiable and does not belong in the master wiki.
 - **NEVER skip `[[wiki links]]` for cross-references.** Broken graphs are silent failures.
-- **NEVER overwrite an existing master-wiki article during compile.** If new material conflicts with or supersedes an existing article, flag it. Updating existing content is an audit-time decision (run `master-audit`), not an ingest-time one.
+- **NEVER overwrite an existing master-wiki article during compile — not even on a "refresh."** If new upstream material supersedes an existing article, surface it as a *new* article that flags the conflict and links to the one it supersedes (see [A "refresh" is still additive](#a-refresh-is-still-additive--never-rewrite-an-existing-article)), then name the stale article in your report. Reconciling the old article to the new facts is an audit-time decision (run `master-audit`), where the change is reviewed before it lands — not an ingest-time one.
 - **NEVER skip the `## Key Takeaways` section.** It is the article's TL;DR — queries depend on it.
 - **NEVER write `_master-index.md` or a theme `_index.md` as a bullet list.** Indexes are markdown tables — the extra structure is what makes the wiki navigable at a glance.
 
