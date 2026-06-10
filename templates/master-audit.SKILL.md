@@ -1,6 +1,6 @@
 ---
 name: master-audit
-description: Audit the master wiki/ for cross-workstream synthesis quality — workstream-internal drift, unflagged contradictions, upstream staleness (master article superseded by its source WS wiki), missing attributions, missing cross-workstream comparisons, theme drift, and the usual structural issues. Produces a numbered audit report in output/_audits. Use when the user says "audit", "lint", or "audit the master wiki". Defaults to report-only — does not change article contents without explicit user confirmation.
+description: Audit the master wiki/ for cross-workstream synthesis quality — workstream-internal drift, unflagged contradictions, upstream staleness (master article superseded by its source WS wiki), missing attributions, missing cross-workstream comparisons, theme drift, and the usual structural issues — then produce a numbered audit report in output/_audits that includes a 0–100 master-wiki integrity score and how it changed this round. Use when the user says "audit", "lint", or "audit the master wiki". Defaults to report-only — does not change article contents without explicit user confirmation.
 ---
 
 # Master Wiki Audit
@@ -50,7 +50,8 @@ Round numbering is **per scope**. The whole-master audit has its own round seque
    
    For each suggestion: proposed title, one-line purpose, impact score, which workstreams it would draw from, and which existing master articles it would connect to. Do **not** create the articles in this pass — surface them in the report so the user can approve, reorder, or defer.
 7. **Default to report-only.** Do NOT edit article contents. Suggest changes in the report and wait for confirmation. For unresolved contradictions you want flagged in-place, propose a `⚠️` callout — but only add it after the user agrees.
-8. **Write the audit report** at `output/_audits/<filename-from-scope-section>` using the template below.
+8. **Score the master wiki's integrity.** From the issues you just found, compute the 0–100 integrity score (see [Master Wiki Integrity Score](#master-wiki-integrity-score)). This is the *as-found* score — the state before any fixes.
+9. **Write the audit report** at `output/_audits/<filename-from-scope-section>` using the template below.
 
 ## Audit Report Template
 
@@ -97,12 +98,43 @@ Round numbering is **per scope**. The whole-master audit has its own round seque
 ## State of the Master Wiki After Round N
 - Total articles, themes, link edges to workstream wikis
 
+## Master Wiki Integrity Score
+
+Before → After: <before> → <after>   (write `(no change)` after it when no fixes were applied)
+
 ## Known Open Items
 - Unresolved flags, external actions (e.g., "confirm with WS2 lead"), WIP items
 ```
 
+## Master Wiki Integrity Score
+
+Each report carries a 0–100 integrity score so the synthesis layer's health is legible at a glance and the round-over-round change is real. The score must be **computed from a fixed rubric, not eyeballed** — the same master-wiki state always yields the same number, otherwise the before→after delta means nothing.
+
+Compute it as `score = max(0, 100 − Σ penalties)`, one penalty per *open* issue (count only issues that appear in your own Findings):
+
+| Issue type | Penalty (each) |
+|---|---|
+| Unflagged cross-workstream contradiction | −8 |
+| Upstream staleness (master claim superseded by its source WS wiki) | −8 |
+| Workstream-internal drift (a non-synthesis article sitting in the master) | −5 |
+| Broken or orphaned link | −5 |
+| Missing attribution (a claim with no `[[wiki link]]` to a source) | −4 |
+| Index format drift (a non-table `_index.md` / `_master-index.md`) | −4 |
+| Missing cross-workstream comparison (a concept in 2+ workstreams with no synthesis article) | −2 |
+| Theme drift (an article filed under the wrong cross-cutting theme) | −2 |
+| Convention nit (missing `## Key Takeaways`, threadbare index description, off-convention filename) | −1 |
+
+Contradictions and upstream staleness are the two cardinal sins of a synthesis layer — a master that hides a conflict or echoes a claim its source has since revised is actively misleading — so both carry the heaviest penalty.
+
+You record two numbers:
+- **Before:** computed over every issue the audit surfaced this round.
+- **After:** recomputed once the user's chosen fixes land — drop the penalty for each *resolved* issue; anything deferred or declined stays counted. If no fixes are applied, after == before.
+
+**Keep the report side dead simple.** The rubric above is *your* working method, not something the reader needs — so the report shows only one line: `Before → After: <before> → <after>`, with `(no change)` appended when nothing was applied (e.g. a report-only pass). No breakdown table, no per-dimension penalties, no formula in the report — just the number and how it moved.
+
 ## Conventions
 - **Report-only pass first** — never change article contents without user confirmation.
+- **Always include the one-line Master Wiki Integrity Score** — `Before → After: X → Y` — since it's what makes the synthesis layer's health legible round to round.
 - After the user confirms fixes, the report documents both what was fixed AND what remains open.
 - Use `⚠️` inline callouts in articles for unresolved cross-workstream contradictions, and reference them under "Known Open Items".
 - Round numbering is sequential per scope.
@@ -116,12 +148,16 @@ Round numbering is **per scope**. The whole-master audit has its own round seque
 - **NEVER inflate findings to make the audit "feel productive".** If a round genuinely finds nothing, write that. A short honest report beats a padded one that trains the user to ignore future audits.
 - **NEVER add `⚠️` callouts to articles before the user has approved them.** The report-only pass is binding.
 - **NEVER claim a contradiction or staleness issue without `file:line` evidence on both sides** (master + upstream). A finding the user can't navigate to is unactionable.
+- **NEVER tune the integrity weights or skip issues to make a round look better.** The rubric is fixed precisely so rounds are comparable; a flattered score is worse than no score.
+- **NEVER report an after-score that assumes fixes you didn't actually apply.** The after-score must reflect the master wiki as it stands once you've stopped editing — deferred and declined issues stay counted.
+- **NEVER dump the scoring rubric, penalty breakdown, or per-dimension table into the report.** The score is one line — `Before → After: X → Y` — the rubric is your internal method, not reader-facing clutter.
 
 ## Output to the user
 
 After writing the report, surface:
 - The audit report path
 - The headline counts (findings per category, including the count of suggested new articles)
+- The **Master Wiki Integrity Score** as `Before → After: X → Y`
 - A short list of the highest-leverage proposed fixes, so the user can approve, reject, or reorder before any edits are made
 - The High-impact suggested articles (just titles + one-line purpose), so the user can green-light, defer, or replace them
 
@@ -136,3 +172,12 @@ After surfacing the summary above, **always** ask the user how they want to proc
 - **Report-only / do nothing** — leave the master wiki as-is; the report stands as the record
 
 Adapt the option set to what was actually found (e.g. drop options whose category is empty). Do not begin any edits until the user has answered.
+
+## After the user chooses
+
+Once the user picks what to apply:
+1. Apply exactly the approved fixes and create exactly the approved articles — nothing they deferred or declined.
+2. **Recompute the integrity score** over what's left open (resolved issues drop out; deferred/declined ones stay), and **update the report in place**: set the Master Wiki Integrity Score line to `Before → After: <before> → <after>`, and update "State of the Master Wiki After Round N" and "Known Open Items" to match reality.
+3. Tell the user the score moved from `<before>` to `<after>` and what's still open, so the round closes with a clear, recorded measure of progress.
+
+If the user chooses report-only / do nothing, the as-found score stands as the round's closing score (before == after) — still record it so the next round has a baseline to trend from.
