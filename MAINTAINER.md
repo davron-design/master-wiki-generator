@@ -35,16 +35,26 @@ There are two scripts in `scripts/`, with opposite audiences — don't confuse t
 
 `master-wiki-generator` is a sibling of `wiki-generator`, not a runtime dependency, but in fresh-scaffold mode it **does** ship copies of `wiki-generator`'s four canonical templates under `templates/ws-templates/`. This bundling makes the master scaffolder self-contained — it can spin up workstream wikis without `wiki-generator` being installed.
 
-**The bundled files in `templates/ws-templates/` are byte-for-byte copies of `wiki-generator/templates/`.** Whenever `wiki-generator` updates one of:
+**The bundled files in `templates/ws-templates/` are byte-for-byte copies of `wiki-generator/templates/`** — specifically:
 
 - `CLAUDE.md`
 - `master-index.md`
 - `raw-compile.SKILL.md`
 - `audit-wiki.SKILL.md`
 
-…you must mirror the change into `master-wiki-generator/templates/ws-templates/`. If you don't, the workstream wikis scaffolded inside a master will diverge from the workstream wikis users scaffold standalone with `wiki-generator`. That divergence is a silent bug — the two paths *should* produce identical vaults.
+If these copies drift from `wiki-generator`, the workstream wikis scaffolded inside a master diverge from the ones users scaffold standalone with `wiki-generator`. That divergence is a silent bug — the two paths *should* produce identical vaults.
 
-A simple way to verify before shipping: `diff -q wiki-generator/templates/ master-wiki-generator/templates/ws-templates/` should report nothing.
+**This sync is now automated.** A GitHub Action lives in the `wiki-generator` repo at `.github/workflows/sync-ws-templates.yml`. When any of the four files above changes on `wiki-generator`'s `main`, the Action copies them into `templates/ws-templates/` here and opens a pull request titled *"Sync ws-templates from wiki-generator"*. **Review and merge that PR** to keep the copies current; closing it without merging re-introduces the drift. The Action requires a one-time secret (`MASTER_WIKI_SYNC_TOKEN`) configured in `wiki-generator` — setup steps are documented at the top of the workflow file.
+
+Manual fallback (if you ever need to sync by hand, e.g. before the secret is set up):
+
+```sh
+for f in CLAUDE.md master-index.md raw-compile.SKILL.md audit-wiki.SKILL.md; do
+  cp "../wiki-generator/templates/$f" "templates/ws-templates/$f"
+done
+# verify — should report nothing:
+diff -q ../wiki-generator/templates/ templates/ws-templates/
+```
 
 The two skills share design patterns (`AskUserQuestion`-driven wizard, template-first architecture, strict verification, upgrade-aware collision detection, `deploy-to-live.sh` workflow). The *master-level* files (`templates/CLAUDE.md`, the `master-*.SKILL.md` files, the setup-notes variants) describe different vault conventions on purpose — they are not copies of any `wiki-generator` file. Keep those master-level files in sync with `wiki-generator` only where the convention genuinely overlaps (e.g., the `## Key Takeaways` rule, lowercase-hyphenated filenames).
 
