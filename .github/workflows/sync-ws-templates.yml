@@ -1,0 +1,124 @@
+name: Sync ws-templates from wiki-generator
+
+# templates/ws-templates/ holds one wiki-generator release. Once a day, and on
+# demand, this workflow looks at wiki-generator's release tags. When a newer
+# release exists, it copies that release's six files from its tag and opens a
+# pull request here. wiki-generator itself has no link to this repo.
+#
+# The copies must be exactly a released set: scaffold.sh stamps every new
+# workstream with ws-templates/VERSION, and that workstream's update-wiki
+# compares its files with wiki-generator's tag of that version.
+#
+# One-time setup: Settings > Actions > General > Workflow permissions, tick
+# "Allow GitHub Actions to create and approve pull requests". A pull request
+# opened with the workflow token starts no other workflows, so this job runs
+# the reading-section check itself and writes the result into the pull
+# request. checks.yml runs again on main once the pull request is merged.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-ws-templates
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Find the newest wiki-generator release
+        id: find
+        run: |
+          set -euo pipefail
+          cur=$(tr -d '[:space:]' < templates/ws-templates/VERSION)
+          # On its own line, so an unreachable or renamed repo fails the run.
+          tags=$(git ls-remote --tags --refs https://github.com/davron-design/wiki-generator 'v*')
+          newest=$(printf '%s\n' "$tags" | sed 's#.*refs/tags/v##' |
+            grep -Ex '[0-9]{4}-[0-9]{2}-[0-9]{2}(\.[0-9]+)?' | sort -V | tail -n 1 || true)
+          if [ -z "$newest" ]; then
+            echo "::error::wiki-generator lists no v<date> release tags"
+            exit 1
+          fi
+          echo "ws-templates: $cur, newest wiki-generator release: ${newest:-none}"
+          # Only ever move forward: an older or equal tag opens nothing.
+          if [ "$newest" = "$cur" ] ||
+             [ "$(printf '%s\n' "$cur" "$newest" | sort -V | tail -n 1)" != "$newest" ]; then
+            echo "update=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "update=true" >> "$GITHUB_OUTPUT"
+          echo "version=$newest" >> "$GITHUB_OUTPUT"
+
+      - name: Copy the release from its tag
+        id: copy
+        if: steps.find.outputs.update == 'true'
+        env:
+          V: ${{ steps.find.outputs.version }}
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 --branch "v$V" https://github.com/davron-design/wiki-generator "$RUNNER_TEMP/wg"
+          for f in CLAUDE.md master-index.md raw-compile.SKILL.md audit-wiki.SKILL.md update-wiki.SKILL.md VERSION; do
+            cp "$RUNNER_TEMP/wg/templates/$f" "templates/ws-templates/$f"
+          done
+          if [ "$(tr -d '[:space:]' < templates/ws-templates/VERSION)" != "$V" ]; then
+            echo "::error::wiki-generator's tag v$V holds a different templates/VERSION"
+            exit 1
+          fi
+          section() { awk '$0 == "## Reading source files" { f = 1 } f && /^## / && $0 != "## Reading source files" { exit } f { print }' "$1"; }
+          if diff -q <(section templates/ws-templates/raw-compile.SKILL.md) <(section templates/master-compile.SKILL.md) >/dev/null; then
+            echo "reading=matches templates/master-compile.SKILL.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "reading=DIFFERS from templates/master-compile.SKILL.md. Copy the section from ws-templates/raw-compile.SKILL.md into master-compile in this pull request, and release the master (VERSION and CHANGELOG)." >> "$GITHUB_OUTPUT"
+          fi
+          # update-master-wiki step 15 quotes wiki-generator's bootstrap prompt word for word.
+          ws=$(grep -m1 '^> Run this exact command' templates/ws-templates/update-wiki.SKILL.md | sed 's/^> //' || true)
+          quoted=$(grep -F '.claude/skills/update-wiki/SKILL.md' templates/update-master-wiki.SKILL.md | grep -m1 '^ *> Run this exact command' | sed 's/^ *> //' || true)
+          if [ -n "$ws" ] && [ "$ws" = "$quoted" ]; then
+            echo "prompt=matches the copy quoted in templates/update-master-wiki.SKILL.md step 15" >> "$GITHUB_OUTPUT"
+          else
+            echo "prompt=DIFFERS from the copy quoted in templates/update-master-wiki.SKILL.md step 15. Update the quote in this pull request, and release the master." >> "$GITHUB_OUTPUT"
+          fi
+          # The copy list is fixed; a file the release adds would be left behind.
+          extra=$(cd "$RUNNER_TEMP/wg/templates" && ls | grep -vxE 'CLAUDE\.md|master-index\.md|raw-compile\.SKILL\.md|audit-wiki\.SKILL\.md|update-wiki\.SKILL\.md|VERSION' | tr '\n' ' ' || true)
+          if [ -n "$extra" ]; then
+            echo "extra=The release also has: $extra. Decide whether ws-templates, scaffold.sh and the copy lists need it." >> "$GITHUB_OUTPUT"
+          else
+            echo "extra=none" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or update the pull request
+        if: steps.find.outputs.update == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: sync/ws-templates
+          delete-branch: true
+          commit-message: "chore: sync ws-templates from wiki-generator v${{ steps.find.outputs.version }}"
+          title: "Sync ws-templates from wiki-generator v${{ steps.find.outputs.version }}"
+          body: |
+            Copies wiki-generator's release `v${{ steps.find.outputs.version }}` into
+            `templates/ws-templates/`, from its tag:
+
+            - `CLAUDE.md`
+            - `master-index.md`
+            - `raw-compile.SKILL.md`
+            - `audit-wiki.SKILL.md`
+            - `update-wiki.SKILL.md`
+            - `VERSION`
+
+            Reading source files section: ${{ steps.copy.outputs.reading }}
+
+            Workstream bootstrap prompt: ${{ steps.copy.outputs.prompt }}
+
+            Other files in the release's templates/: ${{ steps.copy.outputs.extra }}
+
+            Merge it so new workstream wikis start on this release. Closing it
+            leaves them on the older one, which stays updatable with `update`.

@@ -1,0 +1,102 @@
+name: Checks
+
+# Keeps this repo consistent with wiki-generator and with itself. None of these
+# jobs creates or blocks a tag. A red job on a sync pull request means: don't
+# merge yet.
+#   - ws-templates: templates/ws-templates/ must be exactly wiki-generator's
+#     release v<ws-templates/VERSION>. Every workstream scaffolded from these
+#     files is stamped with that version, and its update-wiki compares them
+#     with that tag, so a single changed byte reads as a local edit.
+#   - reading-section: master-compile's "Reading source files" section must
+#     match raw-compile's, so loose files in a master are read the same way as
+#     sources in a workstream.
+#   - bootstrap-prompts: the update-master-wiki prompt must be the same in the
+#     skill and the README, and the workstream prompt quoted in its step 15 the
+#     same as in ws-templates/update-wiki.SKILL.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  ws-templates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Compare ws-templates with the wiki-generator release
+        run: |
+          set -euo pipefail
+          v=$(tr -d '[:space:]' < templates/ws-templates/VERSION)
+          if ! [[ "$v" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(\.[0-9]+)?$ ]]; then
+            echo "::error file=templates/ws-templates/VERSION::'$v' is not a wiki-generator release version"
+            exit 1
+          fi
+          if ! git clone -q --depth 1 --branch "v$v" https://github.com/davron-design/wiki-generator "$RUNNER_TEMP/wg"; then
+            echo "::error file=templates/ws-templates/VERSION::wiki-generator has no tag v$v"
+            exit 1
+          fi
+          bad=0
+          for f in CLAUDE.md master-index.md raw-compile.SKILL.md audit-wiki.SKILL.md update-wiki.SKILL.md VERSION; do
+            if ! cmp -s "$RUNNER_TEMP/wg/templates/$f" "templates/ws-templates/$f"; then
+              echo "::error file=templates/ws-templates/$f::differs from wiki-generator v$v"
+              bad=1
+            fi
+          done
+          [ "$bad" = 0 ] || exit 1
+          echo "templates/ws-templates/ matches wiki-generator v$v."
+
+  reading-section:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Compare the Reading source files sections
+        run: |
+          set -euo pipefail
+          section() { awk '$0 == "## Reading source files" { f = 1 } f && /^## / && $0 != "## Reading source files" { exit } f { print }' "$1"; }
+          section templates/ws-templates/raw-compile.SKILL.md > "$RUNNER_TEMP/raw.md"
+          section templates/master-compile.SKILL.md > "$RUNNER_TEMP/master.md"
+          if [ ! -s "$RUNNER_TEMP/raw.md" ]; then
+            echo "::error file=templates/ws-templates/raw-compile.SKILL.md::no '## Reading source files' section"
+            exit 1
+          fi
+          if ! diff -u "$RUNNER_TEMP/raw.md" "$RUNNER_TEMP/master.md"; then
+            echo "::error file=templates/master-compile.SKILL.md::'Reading source files' differs from ws-templates/raw-compile.SKILL.md. Copy the section over and release the master."
+            exit 1
+          fi
+          echo "The Reading source files sections match."
+
+  bootstrap-prompts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Compare the bootstrap prompts
+        run: |
+          set -euo pipefail
+          # grep without -q reads all of its input; with -q, sed can die of SIGPIPE under pipefail.
+          master=$(grep -F '.claude/skills/update-master-wiki/SKILL.md' templates/update-master-wiki.SKILL.md | grep -m1 '^> Run this exact command' | sed 's/^> //' || true)
+          if [ -z "$master" ]; then
+            echo "::error file=templates/update-master-wiki.SKILL.md::master bootstrap prompt not found"
+            exit 1
+          fi
+          if ! grep -xF "> $master" README.md >/dev/null; then
+            echo "::error file=README.md::the master bootstrap prompt differs from templates/update-master-wiki.SKILL.md"
+            exit 1
+          fi
+          ws=$(grep -m1 '^> Run this exact command' templates/ws-templates/update-wiki.SKILL.md | sed 's/^> //' || true)
+          quoted=$(grep -F '.claude/skills/update-wiki/SKILL.md' templates/update-master-wiki.SKILL.md | grep -m1 '^ *> Run this exact command' | sed 's/^ *> //' || true)
+          if [ -z "$ws" ] || [ "$ws" != "$quoted" ]; then
+            echo "::error file=templates/update-master-wiki.SKILL.md::the workstream bootstrap prompt in step 15 differs from ws-templates/update-wiki.SKILL.md"
+            exit 1
+          fi
+          echo "Both bootstrap prompts match."

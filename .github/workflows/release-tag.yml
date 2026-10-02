@@ -1,0 +1,114 @@
+name: Release tag
+
+# Tags every master template release as v<VERSION>. update-master-wiki reads
+# only templates/VERSION from main and fetches the templates and CHANGELOG.md
+# from that tag, so a release without its tag can't be installed, and a tag
+# that moves makes every master on it report false local edits. Tags are
+# created once and never moved.
+#
+# The release job runs only on main. It fails, and creates no tag, when:
+#   - templates/VERSION is not YYYY-MM-DD or YYYY-MM-DD.N
+#   - templates/VERSION is older than the newest v* tag (a reverted release
+#     would make every master already on the newer one stop with older-than-local)
+#   - CHANGELOG.md has no "## <VERSION>" heading
+#   - the tag already exists and the managed templates differ from it, which
+#     means a template edit shipped without a version bump
+# After tagging, it creates the GitHub release v<VERSION> with the CHANGELOG
+# entry as its notes, unless that release already exists.
+#
+# templates/ws-templates/ is versioned by wiki-generator's own tags and is not
+# part of this release. checks.yml verifies it.
+#
+# To retry after a fix, push the fix or use "Run workflow" on the Actions tab.
+# "Re-run" replays the old commit.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'templates/VERSION'
+      - 'templates/CLAUDE.md'
+      - 'templates/master-compile.SKILL.md'
+      - 'templates/master-audit.SKILL.md'
+      - 'templates/update-master-wiki.SKILL.md'
+      - 'templates/settings.json'
+      - 'CHANGELOG.md'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-tag
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check VERSION, CHANGELOG and any existing tag
+        id: check
+        run: |
+          set -euo pipefail
+          v=$(tr -d '[:space:]' < templates/VERSION)
+          if ! [[ "$v" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(\.[0-9]+)?$ ]]; then
+            echo "::error file=templates/VERSION::'$v' is not YYYY-MM-DD or YYYY-MM-DD.N"
+            exit 1
+          fi
+          if ! grep -qxF "## $v" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::no '## $v' heading. Add the release notes, then push again."
+            exit 1
+          fi
+          if [ "$(grep -m1 '^## ' CHANGELOG.md)" != "## $v" ]; then
+            echo "::warning file=CHANGELOG.md::'## $v' is not the first entry"
+          fi
+          newest=$(git tag -l 'v*' | sed 's/^v//' | grep -Ex '[0-9]{4}-[0-9]{2}-[0-9]{2}(\.[0-9]+)?' | sort -V | tail -n 1 || true)
+          if [ -n "$newest" ] && [ "$(printf '%s\n' "$newest" "$v" | sort -V | tail -n 1)" != "$v" ]; then
+            echo "::error file=templates/VERSION::'$v' is older than the newest release v$newest. A fix after a bad release gets a new, higher version."
+            exit 1
+          fi
+          echo "tag=v$v" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+            managed="templates/VERSION templates/CLAUDE.md templates/master-compile.SKILL.md templates/master-audit.SKILL.md templates/update-master-wiki.SKILL.md templates/settings.json"
+            if ! git diff --quiet "v$v" HEAD -- $managed; then
+              echo "::error::managed templates differ from the released v$v. Bump templates/VERSION and add a CHANGELOG entry."
+              git diff --stat "v$v" HEAD -- $managed
+              exit 1
+            fi
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "v$v already exists and matches. Nothing to tag."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create the release tag
+        if: steps.check.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+          echo "Tagged $GITHUB_SHA as $TAG"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Nothing to do."
+            exit 0
+          fi
+          # The notes are the CHANGELOG entry: its "## <VERSION>" heading up to the next "## " heading.
+          awk -v h="## ${TAG#v}" '$0 == h { f = 1; print; next } f && /^## / { exit } f { print }' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --latest
+          echo "Created release $TAG"
