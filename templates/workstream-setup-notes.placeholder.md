@@ -72,13 +72,15 @@ git commit -m "refresh <ws-slug> wiki snapshot"
 
 You only need to repeat steps 2–3 when the workstream wiki has new content worth pulling into the master.
 
+Either way, each workstream wiki keeps its own skills and updates them in its own repository. Saying `update` at the master root refreshes only the master's files.
+
 ---
 
 ## Then compile
 
 Once every `raw/<ws-slug>-wiki/` has real workstream content (a `wiki/` subfolder with articles), say **"compile"** in Claude Code. The `master-compile` skill will read each workstream wiki plus any cross-cutting files you've dropped into `raw/`, then write synthesis articles into `wiki/`.
 
-**This setup-notes file (`_workstream-setup-notes.md`) is itself a cross-cutting file in `raw/`.** It will get archived into `raw/_<date>-complied/` on first compile — that's expected. Once your workstreams are wired up you don't need it anymore.
+**This setup-notes file (`_workstream-setup-notes.md`) is itself a cross-cutting file in `raw/`.** The first compile archives it into `raw/_<date>-compiled/`, which is expected. Once your workstreams are wired up you don't need it anymore.
 
 ---
 

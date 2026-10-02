@@ -1,0 +1,7 @@
+{
+  "skillOverrides": {
+    "raw-compile": "off",
+    "audit-wiki": "off",
+    "update-wiki": "off"
+  }
+}

@@ -1,6 +1,6 @@
 # Workstream Wikis — Setup Complete
 
-Each workstream folder below was scaffolded by `master-wiki-generator` as a **fully-formed wiki vault**, with its own `CLAUDE.md`, `raw/`, `wiki/`, `output/`, and project-scoped companion skills (`raw-compile`, `audit-wiki`). No wiring needed — they're ready to use immediately.
+Each workstream folder below was scaffolded by `master-wiki-generator` as a **fully-formed wiki vault**, with its own `CLAUDE.md`, `raw/`, `wiki/`, `output/`, project-scoped companion skills (`raw-compile`, `audit-wiki`, `update-wiki`) and a version stamp. They need no wiring and are ready to use.
 
 <!--
 SCAFFOLDER NOTE: replace the WORKSTREAMS block below with one bullet per workstream
@@ -18,10 +18,11 @@ substitutes this when writing the file.
 
 ## How to use each workstream wiki
 
-1. **cd into the workstream folder** in Claude Code (e.g., open `raw/ws1-wiki/` as the project root, or `cd raw/ws1-wiki/` from the terminal). Each workstream wiki is self-contained with its own conventions in its local `CLAUDE.md`.
+1. **Open the workstream folder in a new Claude Code session** (e.g., pick `raw/ws1-wiki/` as the folder). Claude Code loads a folder's `CLAUDE.md` and skills when a session starts there, so a session opened at the master root keeps running the master's skills. Each workstream wiki is self-contained with its own conventions in its local `CLAUDE.md`.
 2. **Drop source material** — articles, notes, research, transcripts — into that workstream's own `raw/` folder.
 3. **Say `compile`** in Claude Code. The workstream's project-scoped `raw-compile` skill activates and writes wiki articles into that workstream's `wiki/` folder, archiving the raw files after.
 4. **Say `audit`** periodically to check the workstream wiki for gaps and inconsistencies. Reports land in the workstream's own `output/_audits/`.
+5. **Say `update`** now and then. The workstream's `update-wiki` fetches the latest compile and audit rules from `wiki-generator`, shows what changed, and asks before writing anything.
 
 Each workstream wiki operates independently. The master only reads each workstream's polished `wiki/` subfolder when synthesizing.
 
@@ -37,7 +38,7 @@ Once one or more workstream wikis have real content in their `wiki/` subfolder, 
 
 ## Cross-cutting files
 
-Anything that touches multiple workstreams — steering committee notes, integration plans, exec decisions, RFCs that span teams — drop directly into the master's `raw/` folder (next to this file). `master-compile` will absorb them on the next compile and archive them into `raw/_<date>-complied/`.
+Anything that touches multiple workstreams (steering committee notes, integration plans, exec decisions, RFCs that span teams) goes directly into the master's `raw/` folder, next to this file. `master-compile` will absorb them on the next compile and archive them into `raw/_<date>-compiled/`.
 
 ## Auditing the master
 
@@ -50,6 +51,10 @@ Say **`audit`** from the master root to run `master-audit`. It reads the master 
 
 Reports land in the master's `output/_audits/`. Report-only by default — nothing changes until you confirm.
 
+## Keeping the skills current
+
+Say **`update`** at the master root to refresh the master's own files (`CLAUDE.md`, `master-compile`, `master-audit` and `update-master-wiki`). It shows what changed, asks before writing, and then lists which workstream wikis are behind. Each workstream updates itself with **`update`** in a session opened in its own folder.
+
 ---
 
 ## Anti-patterns to avoid
@@ -61,4 +66,4 @@ Reports land in the master's `output/_audits/`. Report-only by default — nothi
 
 ---
 
-*(This setup-notes file is itself a cross-cutting file in the master's `raw/`. It will get archived into `raw/_<date>-complied/` on the first master compile — that's expected.)*
+*(This setup-notes file is itself a cross-cutting file in the master's `raw/`, so the first master compile archives it into `raw/_<date>-compiled/`. That's expected.)*
