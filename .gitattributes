@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must be LF even on a Windows checkout. CRLF here fails at run
+# time with "bad interpreter: /bin/bash^M".
+*.sh text eol=lf
